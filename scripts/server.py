@@ -14,6 +14,8 @@ import socket
 import threading
 import os
 import gzip
+from influxdb import InfluxDBClient
+import datetime
 
 from utils.notifications import sendAppriseNotifications
 from utils.parse_settings import config_to_settings
@@ -33,6 +35,10 @@ SERVER = "localhost"
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECT"
+
+INFLUXDB_HOST = '10.10.100.95'
+INFLUXDB_PORT = 8086
+INFLUXDB_DATABASE = 'bird_data'
 
 userDir = os.path.expanduser('~')
 DB_PATH = userDir + '/BirdNET-Pi/scripts/birds.db'
@@ -341,6 +347,11 @@ def handle_client(conn, addr):
     global EXCLUDE_LIST
     # print(f"[NEW CONNECTION] {addr} connected.")
 
+    # Setup Influx:
+    client = InfluxDBClient(INFLUXDB_HOST, INFLUXDB_PORT, INFLUXDB_DATABASE)
+
+
+
     while True:
         msg_length = conn.recv(HEADER).decode(FORMAT)
         if not msg_length:
@@ -517,6 +528,31 @@ def handle_client(conn, addr):
                                 print("Database busy")
                                 time.sleep(2)
 
+                        # Send to Influx
+
+                        json_body = [
+                            {
+                                "measurement": "birdnet",
+                                "time": time.isoformat(),
+                                "fields": {
+                                    "com_name": Com_Name,
+                                    "sci_name": Sci_Name,
+                                    "score": float(score),
+                                    "lat": float(Lat),
+                                    "lon": float(Lon),
+                                    "cutoff": float(Cutoff),
+                                    "week": int(Week),
+                                    "sens": float(Sens),
+                                    "overlap": float(Overlap),
+                                    "file_name": File_Name
+                                }
+                            }
+                        ]
+                        try:
+                            client.write_points(json_body)
+                        except:
+                            print("Unable to write to InfluxDB")
+
                         # Apprise of detection if not already alerted this run.
                         if not entry[0] in species_apprised_this_run:
                             settings_dict = config_to_settings(userDir + '/BirdNET-Pi/scripts/thisrun.txt')
@@ -613,9 +649,13 @@ def handle_client(conn, addr):
                                 print("Cannot POST right now")
         conn.send(myReturn.encode(FORMAT))
 
+        ## INFLUX
+        
+
         # time.sleep(3)
 
     conn.close()
+
 
 
 def start():
