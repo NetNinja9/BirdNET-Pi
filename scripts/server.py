@@ -38,7 +38,9 @@ DISCONNECT_MESSAGE = "!DISCONNECT"
 
 INFLUXDB_HOST = '10.10.100.95'
 INFLUXDB_PORT = 8086
-INFLUXDB_DATABASE = 'bird_data'
+INFLUXDB_USERNAME = 'birdnet'
+INFLUXDB_PASSWORD = 'metricsmetricsmetrics'
+INFLUXDB_DATABASE = 'grafanadb'
 
 userDir = os.path.expanduser('~')
 DB_PATH = userDir + '/BirdNET-Pi/scripts/birds.db'
@@ -348,7 +350,7 @@ def handle_client(conn, addr):
     # print(f"[NEW CONNECTION] {addr} connected.")
 
     # Setup Influx:
-    client = InfluxDBClient(INFLUXDB_HOST, INFLUXDB_PORT, INFLUXDB_DATABASE)
+    client = InfluxDBClient(INFLUXDB_HOST, INFLUXDB_PORT, INFLUXDB_USERNAME, INFLUXDB_PASSWORD, INFLUXDB_DATABASE)
 
 
 
@@ -533,25 +535,28 @@ def handle_client(conn, addr):
                         json_body = [
                             {
                                 "measurement": "birdnet",
-                                "time": time.isoformat(),
-                                "fields": {
+                                "time": datetime.datetime.utcnow().isoformat(),
+                                "tags": {
                                     "com_name": Com_Name,
                                     "sci_name": Sci_Name,
-                                    "score": float(score),
-                                    "lat": float(Lat),
-                                    "lon": float(Lon),
-                                    "cutoff": float(Cutoff),
-                                    "week": int(Week),
-                                    "sens": float(Sens),
-                                    "overlap": float(Overlap),
+                                },
+                                "fields": {
+                                    "score": str(score),
+                                    "lat": str(Lat),
+                                    "lon": str(Lon),
+                                    "cutoff": str(Cutoff),
+                                    "week": str(Week),
+                                    "sens": str(Sens),
+                                    "overlap": str(Overlap),
                                     "file_name": File_Name
                                 }
                             }
                         ]
-                        try:
-                            client.write_points(json_body)
-                        except:
-                            print("Unable to write to InfluxDB")
+                        print("Sending to Influx!")
+                        #try:
+                        client.write_points(json_body)
+                        #except:
+                        #    print("Unable to write to InfluxDB")
 
                         # Apprise of detection if not already alerted this run.
                         if not entry[0] in species_apprised_this_run:
